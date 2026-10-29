@@ -1,0 +1,161 @@
+# ============================================================
+# BLOCKCHAIN LAB - WEEK 9
+# HYPERLEDGER FABRIC NETWORK SETUP
+# 2 ORGANIZATIONS, 1 PEER EACH
+# CHANNELS: mychannel and carchannel
+# ============================================================
+
+
+# STEP 1: UPDATE UBUNTU AND INSTALL PREREQUISITES
+
+sudo apt update
+
+sudo apt install -y git curl docker.io docker-compose nodejs npm
+
+sudo systemctl enable --now docker
+
+sudo usermod -aG docker "$USER"
+
+# IMPORTANT:
+# Log out and log back in, or restart Ubuntu, before continuing.
+# Then open a NEW terminal and continue with STEP 2.
+
+
+# STEP 2: VERIFY DOCKER INSTALLATION
+
+docker --version
+
+docker ps
+
+
+# STEP 3: CREATE A DIRECTORY FOR FABRIC INSTALLATION
+
+cd ~
+
+mkdir -p ~/fabric-setup
+
+cd ~/fabric-setup
+
+
+# STEP 4: DOWNLOAD THE OFFICIAL FABRIC INSTALLATION SCRIPT
+
+curl -sSLO https://raw.githubusercontent.com/hyperledger/fabric/main/scripts/install-fabric.sh
+
+chmod +x install-fabric.sh
+
+
+# STEP 5: DOWNLOAD FABRIC SAMPLES, BINARIES AND DOCKER IMAGES
+
+./install-fabric.sh docker samples binary
+
+# WAIT FOR THE DOWNLOAD AND INSTALLATION TO FINISH.
+
+
+# STEP 6: VERIFY THE FABRIC SAMPLES DIRECTORY
+
+ls -la ~/fabric-setup/fabric-samples
+
+ls -la ~/fabric-setup/fabric-samples/bin
+
+
+# STEP 7: MOVE TO THE FABRIC TEST NETWORK DIRECTORY
+
+cd ~/fabric-setup/fabric-samples/test-network
+
+ls -l network.sh
+
+chmod +x network.sh
+
+./network.sh -h
+
+
+# STEP 8: CLEAN UP ANY PREVIOUS TEST NETWORK
+# WARNING: This removes existing test-network containers
+# and generated artifacts. Do not run if you need to
+# preserve an existing network or its ledger data.
+
+./network.sh down
+
+
+# STEP 9: START THE HYPERLEDGER FABRIC NETWORK
+# This starts Org1, Org2 and the ordering service.
+
+./network.sh up
+
+# WAIT UNTIL THE NETWORK STARTUP COMPLETES.
+
+
+# STEP 10: VERIFY THE RUNNING CONTAINERS
+
+docker ps
+
+
+# STEP 11: CREATE THE FIRST CHANNEL - mychannel
+
+cd ~/fabric-setup/fabric-samples/test-network
+
+./network.sh createChannel -c mychannel
+
+# WAIT UNTIL CHANNEL CREATION COMPLETES SUCCESSFULLY.
+
+
+# STEP 12: CREATE THE SECOND CHANNEL - carchannel
+
+./network.sh createChannel -c carchannel
+
+# WAIT UNTIL CHANNEL CREATION COMPLETES SUCCESSFULLY.
+
+
+# STEP 13: CHECK THE ORGANIZATION DIRECTORIES
+
+ls -la organizations/peerOrganizations
+
+# Expected organization directories:
+# org1.example.com
+# org2.example.com
+
+command: docker exec -it peer0.org1.example.com bash 
+
+
+
+
+
+
+# STEP 16: VERIFY THE CHANNELS JOINED BY ORG1
+
+peer channel list
+
+# Expected channel names:
+# mychannel
+# carchannel
+
+
+
+
+# STEP 18: VERIFY THE CHANNELS JOINED BY ORG2
+
+peer channel list
+
+# Expected channel names:
+# mychannel
+# carchannel
+
+
+# STEP 19: FINAL NETWORK VERIFICATION
+
+docker ps
+
+peer channel list
+
+
+# ============================================================
+# WEEK 9 EXPERIMENT COMPLETED
+# ============================================================
+
+
+# STEP 20: STOP THE NETWORK AFTER COMPLETING THE EXPERIMENT
+# RUN ONLY WHEN YOU NO LONGER NEED THE NETWORK.
+# WARNING: This can remove generated artifacts and ledger data.
+
+# cd ~/fabric-setup/fabric-samples/test-network
+# ./network.sh down
