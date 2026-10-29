@@ -1,0 +1,204 @@
+# WEEK 12 AND 13
+
+## Experiment 10: Write an SDK Program to Query Person Details from the Deployed Smart Contract
+
+### Aim
+To write an SDK client program to query person details from a deployed smart contract on the Hyperledger Fabric network.
+
+### Step 1: Concept
+
+We will create an SDK client program named `queryPersonDetails.js` that performs the following operations:
+
+1. Connects to the Fabric network using the connection profile (JSON).
+2. Uses the registered identity `appUser`.
+3. Calls the chaincode function `queryCarsByOwner(owner)`.
+4. Parses and displays the person's details, including the owner's name and car details.
+
+### Step 2: Create the SDK Program
+
+Create a file named `queryPersonDetails.js` in the following directory:
+
+```text
+fabric-samples/fabcar/javascript/queryPersonDetails.js
+```
+
+**Program: `queryPersonDetails.js`**
+
+```javascript
+'use strict';
+
+const { Gateway, Wallets } = require('fabric-network');
+const path = require('path');
+const fs = require('fs');
+
+async function main() {
+    try {
+        console.log('\n============= QUERY PERSON DETAILS =============');
+
+        // Load connection profile
+        const ccpPath = path.resolve(
+            __dirname,
+            '..',
+            'test-network',
+            'organizations',
+            'peerOrganizations',
+            'org1.example.com',
+            'connection-org1.json'
+        );
+
+        const ccp = JSON.parse(
+            fs.readFileSync(ccpPath, 'utf8')
+        );
+
+        // Create wallet instance
+        const walletPath = path.join(process.cwd(), 'wallet');
+        const wallet = await Wallets.newFileSystemWallet(walletPath);
+
+        console.log(`Wallet path: ${walletPath}`);
+
+        // Check for existing identity
+        const identity = await wallet.get('appUser');
+
+        if (!identity) {
+            console.log(
+                'Identity for "appUser" not found. Run registerUser.js first.'
+            );
+            return;
+        }
+
+        // Connect to gateway
+        const gateway = new Gateway();
+
+        await gateway.connect(ccp, {
+            wallet,
+            identity: 'appUser',
+            discovery: {
+                enabled: true,
+                asLocalhost: true
+            }
+        });
+
+        // Access network and contract
+        const network = await gateway.getNetwork('mychannel');
+        const contract = network.getContract('fabcar');
+
+        // Define the owner name to query
+        const ownerName = 'Pavani';
+
+        console.log(
+            `\n--> Querying cars owned by person: ${ownerName}`
+        );
+
+        // Evaluate the chaincode function
+        const result = await contract.evaluateTransaction(
+            'queryCarsByOwner',
+            ownerName
+        );
+
+        // Parse and display output
+        const cars = JSON.parse(result.toString());
+
+        if (cars.length === 0) {
+            console.log(
+                `No records found for owner "${ownerName}".`
+            );
+        } else {
+            console.log(
+                `Found ${cars.length} record(s) for owner "${ownerName}":\n`
+            );
+
+            cars.forEach((item, index) => {
+                console.log(`Car ${index + 1}:`);
+                console.log(`  Car ID     : ${item.Key}`);
+                console.log(`  Make       : ${item.Record.make}`);
+                console.log(`  Model      : ${item.Record.model}`);
+                console.log(`  Color      : ${item.Record.color}`);
+                console.log(`  Owner Name : ${item.Record.owner}`);
+                console.log('--------------------------------------');
+            });
+        }
+
+        // Disconnect from the network
+        await gateway.disconnect();
+
+        console.log('\n============= END OF QUERY =============\n');
+
+    } catch (error) {
+        console.error(`Error querying person details: ${error}`);
+        process.exit(1);
+    }
+}
+
+main();
+```
+
+### Step 3: Run the SDK Program
+
+Ensure that the Fabric test network is running and the modified FabCar chaincode has been deployed.
+
+**1. Start the network and create the channel if necessary**
+
+```bash
+cd ~/fabric-samples/test-network
+./network.sh up createChannel -c mychannel
+```
+
+**2. Deploy the modified chaincode if it has not already been deployed**
+
+```bash
+./network.sh deployCC \
+    -ccn fabcar \
+    -ccp ../chaincode/fabcar/javascript \
+    -ccl javascript \
+    -ccv 1.0 \
+    -c mychannel
+```
+
+**3. Register the administrator and application user if they have not already been registered**
+
+```bash
+cd ~/fabric-samples/fabcar/javascript
+npm install
+node enrollAdmin.js
+node registerUser.js
+```
+
+**4. Run the SDK program**
+
+```bash
+node queryPersonDetails.js
+```
+
+### Output
+
+The following is the expected output when the ledger contains a car owned by Pavani.
+
+```text
+============= QUERY PERSON DETAILS =============
+
+Wallet path: /home/user/fabric-samples/fabcar/javascript/wallet
+
+--> Querying cars owned by person: Pavani
+
+Found 1 record(s) for owner "Pavani":
+
+Car 1:
+  Car ID     : CAR9
+  Make       : Holden
+  Model      : Barina
+  Color      : brown
+  Owner Name : Pavani
+--------------------------------------
+
+============= END OF QUERY =============
+```
+
+**If no cars match the specified owner:**
+
+```text
+No records found for owner "John".
+```
+
+### Result
+
+The SDK client program was written to connect to the Hyperledger Fabric network and query person details using the deployed FabCar smart contract. The program retrieves and displays the matching car records based on the owner's name.
