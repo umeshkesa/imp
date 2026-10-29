@@ -1,0 +1,299 @@
+# WEEK 10 AND 11
+
+## Aim
+To take the existing FabCar smart contract, add a new function to query cars based on a person's name, and deploy the modified smart contract on the Hyperledger Fabric network.
+
+## Prerequisites
+
+Ensure that the following are installed:
+
+- Git
+- Docker and Docker Compose (running)
+- Node.js and npm (Node.js 14+ recommended)
+- cURL and Bash
+- Hyperledger Fabric samples and binaries
+
+**Reference links:**
+- [Hyperledger Fabric Test Network](https://hyperledger-fabric.readthedocs.io/en/latest/test_network.html)
+- [Hyperledger Fabric Samples – FabCar JavaScript](https://github.com/hyperledger/fabric-samples/tree/release-1.4/chaincode/fabcar/javascript)
+
+## Folder Structure
+
+Assuming the Fabric samples are cloned into `~/fabric-samples`:
+
+- **Chaincode:** `~/fabric-samples/chaincode/fabcar/javascript/`
+- **Test network:** `~/fabric-samples/test-network/`
+- **FabCar helper script:** `~/fabric-samples/fabcar/startFabric.sh` (available in some versions)
+
+## 1. Modify the FabCar Chaincode
+
+Open the existing JavaScript chaincode file:
+
+```bash
+cd ~/fabric-samples/chaincode/fabcar/javascript
+nano lib/fabcar.js
+```
+
+Inside the `FabCar` contract class, locate a method such as `queryAllCars(ctx)` and add the following function inside the class:
+
+```javascript
+async queryCarsByOwner(ctx, owner) {
+    const startKey = '';
+    const endKey = '';
+
+    const iterator = await ctx.stub.getStateByRange(startKey, endKey);
+    const allResults = [];
+
+    while (true) {
+        const res = await iterator.next();
+
+        if (res.value && res.value.value.toString()) {
+            const Key = res.value.key;
+
+            try {
+                const record = JSON.parse(
+                    res.value.value.toString('utf8')
+                );
+
+                // Include cars matching the specified owner.
+                if (record.owner && record.owner === owner) {
+                    allResults.push({
+                        Key,
+                        Record: record
+                    });
+                }
+            } catch (err) {
+                // Skip values that are not valid JSON.
+            }
+        }
+
+        if (res.done) {
+            await iterator.close();
+            break;
+        }
+    }
+
+    return JSON.stringify(allResults);
+}
+```
+
+**Explanation:**
+
+- `getStateByRange()` retrieves records from the ledger.
+- `iterator.next()` reads the records one by one.
+- `JSON.parse()` converts each record into a JavaScript object.
+- The `record.owner === owner` condition checks whether the car belongs to the specified person.
+- Matching records are added to `allResults`.
+- `JSON.stringify()` returns the matching records as a JSON string.
+
+Save the file using **Ctrl+O**, press **Enter**, and exit using **Ctrl+X**.
+
+## 2. Check the Contract Structure
+
+Ensure that `queryCarsByOwner()` is placed inside the `FabCar` class.
+
+In the JavaScript contract model, methods of the contract class are generally exposed as transaction functions automatically. No separate registration is required for this method.
+
+## 3. Install Chaincode Dependencies
+
+Run the following commands from the JavaScript chaincode directory:
+
+```bash
+cd ~/fabric-samples/chaincode/fabcar/javascript
+npm install
+```
+
+This installs the dependencies required by the chaincode.
+
+**Reference:** [Hyperledger Fabric – Deploying a Smart Contract](https://hyperledger-fabric.readthedocs.io/en/latest/deploy_chaincode.html)
+
+## 4. Start the Fabric Network and Create a Channel
+
+Navigate to the test-network directory:
+
+```bash
+cd ~/fabric-samples/test-network
+```
+
+Start the network:
+
+```bash
+./network.sh up
+```
+
+Create the channel:
+
+```bash
+./network.sh createChannel -c mychannel
+```
+
+The Fabric test network contains two organizations, with one peer for each organization, and an ordering service.
+
+## 5. Deploy the Modified Chaincode
+
+The modified chaincode must be deployed after the function has been added.
+
+For the Fabric test network, use the following command:
+
+```bash
+cd ~/fabric-samples/test-network
+
+./network.sh deployCC \
+    -ccn fabcar \
+    -ccp ../chaincode/fabcar/javascript \
+    -ccl javascript \
+    -c mychannel
+```
+
+Here:
+
+- `-ccn` specifies the chaincode name.
+- `-ccp` specifies the chaincode directory.
+- `-ccl` specifies the chaincode language.
+- `-c` specifies the channel name.
+
+The deployment script handles the chaincode lifecycle steps required by the selected Fabric test-network version.
+
+**Note:** These commands assume that the FabCar source directory exists at the specified path and is compatible with your installed Fabric version. The older `release-1.4` FabCar source may require a compatible older Fabric environment.
+
+**Reference:** [Hyperledger Fabric Test Network](https://hyperledger-fabric.readthedocs.io/en/latest/test_network.html)
+
+## 6. Register the Application User
+
+The FabCar application includes scripts for enrolling the administrator and registering an application user.
+
+Navigate to the application directory:
+
+```bash
+cd ~/fabric-samples/fabcar/javascript
+npm install
+```
+
+Enroll the administrator:
+
+```bash
+node enrollAdmin.js
+```
+
+Register the application user:
+
+```bash
+node registerUser.js
+```
+
+These commands assume that the corresponding scripts are present in the selected FabCar sample and that the network and connection profile are configured correctly.
+
+## 7. Create and Run the Client Program
+
+Create a file named `queryByOwner.js` in the FabCar JavaScript application directory.
+
+```javascript
+'use strict';
+
+const { Gateway, Wallets } = require('fabric-network');
+const path = require('path');
+const fs = require('fs');
+
+async function main() {
+    try {
+        const ccpPath = path.resolve(
+            __dirname,
+            '..',
+            'test-network',
+            'organizations',
+            'peerOrganizations',
+            'org1.example.com',
+            'connection-org1.json'
+        );
+
+        const ccp = JSON.parse(
+            fs.readFileSync(ccpPath, 'utf8')
+        );
+
+        const walletPath = path.join(
+            process.cwd(),
+            'wallet'
+        );
+
+        const wallet = await Wallets.newFileSystemWallet(
+            walletPath
+        );
+
+        const gateway = new Gateway();
+
+        await gateway.connect(ccp, {
+            wallet,
+            identity: 'appUser',
+            discovery: {
+                enabled: true,
+                asLocalhost: true
+            }
+        });
+
+        const network = await gateway.getNetwork('mychannel');
+        const contract = network.getContract('fabcar');
+
+        const ownerName = 'Amit';
+
+        const result = await contract.evaluateTransaction(
+            'queryCarsByOwner',
+            ownerName
+        );
+
+        console.log('Query result:', result.toString());
+
+        await gateway.disconnect();
+
+    } catch (error) {
+        console.error(`Error: ${error}`);
+        process.exit(1);
+    }
+}
+
+main();
+```
+
+Run the program:
+
+```bash
+node queryByOwner.js
+```
+
+**Expected output format:**
+
+```text
+Query result: [{"Key":"CAR1","Record":{"make":"Toyota","model":"Prius","color":"blue","owner":"Amit"}}]
+```
+
+The actual output depends on the records stored in the ledger. If no car belongs to the specified person, the function returns an empty JSON array:
+
+```text
+Query result: []
+```
+
+**Important:** The connection profile path in the client program must match your actual directory structure. The example assumes that `test-network` is located one directory above the application directory.
+
+## 8. Alternative: Query Using the Peer CLI
+
+The chaincode function can also be called using the peer CLI:
+
+```bash
+peer chaincode query \
+    -C mychannel \
+    -n fabcar \
+    -c '{"Args":["queryCarsByOwner","Amit"]}'
+```
+
+This command requires the peer CLI to be installed and the appropriate peer, MSP, and TLS environment variables to be configured.
+
+## 9. Troubleshooting
+
+1. **Empty result:** Check whether the owner name matches the ledger record exactly, including capitalization.
+2. **Deployment failure:** Check the chaincode path, dependencies, and compatibility between the Fabric and chaincode versions.
+3. **User registration failure:** Ensure the network is running and the enrollment scripts and connection profile are available.
+4. **Connection failure:** Verify the connection profile path, wallet identity, and network status.
+5. **Chaincode errors:** Inspect the peer and chaincode container logs for additional information.
+
+## Result
+
+The existing FabCar smart contract was modified by adding the `queryCarsByOwner()` function to retrieve cars based on a person's name. The modified chaincode was then deployed on the Hyperledger Fabric network and tested using a client program or the peer CLI.
