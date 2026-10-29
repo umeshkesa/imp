@@ -1,0 +1,75 @@
+# 1. Install prerequisites
+sudo apt update
+sudo apt install -y git curl docker.io docker-compose nodejs npm
+
+# 2. Download Fabric samples (skip if already downloaded)
+cd ~
+git clone -b release-1.4 https://github.com/hyperledger/fabric-samples.git fabric-samples-1.4
+
+# 3. Open the FabCar JavaScript chaincode directory
+cd ~/fabric-samples-1.4/chaincode/fabcar/javascript
+
+# 4. Install dependencies
+npm install
+
+# 5. Open the existing FabCar smart contract
+nano lib/fabcar.js
+
+# ADD THE FUNCTION BELOW INSIDE THE FabCar CLASS.
+# Do not replace the entire file.
+#
+# async queryCarsByOwner(ctx, owner) {
+#     const iterator = await ctx.stub.getStateByRange('', '');
+#     const allResults = [];
+#
+#     while (true) {
+#         const res = await iterator.next();
+#
+#         if (res.value && res.value.value.toString()) {
+#             const Key = res.value.key;
+#             try {
+#                 const record = JSON.parse(res.value.value.toString('utf8'));
+#                 if (record.owner && record.owner === owner) {
+#                     allResults.push({ Key, Record: record });
+#                 }
+#             } catch (err) {
+#                 // Skip values that are not JSON.
+#             }
+#         }
+#
+#         if (res.done) {
+#             await iterator.close();
+#             break;
+#         }
+#     }
+#
+#     return JSON.stringify(allResults);
+# }
+#
+# Save: Ctrl+O, Enter; Exit: Ctrl+X
+
+# 6. Go to the Fabric test network
+cd ~/fabric-samples/test-network
+
+# 7. Start the network
+./network.sh up
+
+# 8. Create mychannel
+./network.sh createChannel -c mychannel
+
+# 9. Create carchannel
+./network.sh createChannel -c carchannel
+
+# 10. Deploy the modified FabCar chaincode
+./network.sh deployCC \
+  -ccn fabcar \
+  -ccp ~/fabric-samples-1.4/chaincode/fabcar/javascript \
+  -ccl javascript \
+  -c mychannel
+
+# 11. Query cars by owner
+# Run this only after successful deployment.
+peer chaincode query \
+  -C mychannel \
+  -n fabcar \
+  -c '{"Args":["queryCarsByOwner","Tomoko"]}'
