@@ -107,6 +107,17 @@ This installs the dependencies required by the chaincode.
 
 **Reference:** [Hyperledger Fabric – Deploying a Smart Contract](https://hyperledger-fabric.readthedocs.io/en/latest/deploy_chaincode.html)
 
+4) Bring up the test network & create channel 
+There are two common ways to deploy FabCar in fabric-samples: the fabcar helper script or 
+the test-network script. 
+use the fabcar helper (simpler for FabCar): 
+cd ~/fabric-samples/fabcar 
+./startFabric.sh javascript 
+This brings up the network and deploys the fabcar chaincode (javascript variant). Many 
+FabCar tutorials use this helper
+
+
+
 ## 4. Start the Fabric Network and Create a Channel
 
 Navigate to the test-network directory:
